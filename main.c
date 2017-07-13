@@ -4,8 +4,6 @@
 #include <psp2kern/kernel/modulemgr.h>
 #include <psp2kern/kernel/threadmgr.h>
 #include <psp2kern/kernel/sysmem.h>
-#include <psp2kern/io/fcntl.h>
-#include <psp2kern/display.h>
 #include <taihen.h>
 
 #define UART0_PRINTF(s, ...) \
@@ -165,10 +163,6 @@ void __attribute__((noreturn, used)) trampoline_stage_1(void)
 	sync_sema++;
 
 	if (get_cpu_id() == 0) {
-		ScePervasiveForDriver_EFD084D8(0); // Turn on clock
-		ScePervasiveForDriver_A7CE7DCC(0); // Out of reset
-		ksceUartInit(0);
-
 		/*
 		 * Copy the payload.
 		 */
@@ -184,8 +178,6 @@ void __attribute__((noreturn, used)) trampoline_stage_1(void)
 
 	while (sync_evflag != 1)
 		;
-
-	ksceUartWrite(0, 'A');
 
 	((void (*)(void))PAYLOAD_PADDR)();
 

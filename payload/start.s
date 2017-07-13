@@ -29,8 +29,3 @@ _start:
 
 	# Jump to the C code
 	b main
-
-# Variables
-cpu_sync: .word 0
-
-	.ltorg
