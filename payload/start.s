@@ -6,14 +6,14 @@
 
 	.global _start
 _start:
-	# Disable interrupts and enter SVC mode
-	cpsid if, #0x13
+	# Disable interrupts and enter System mode
+	cpsid aif, #0x1F
 
 	# DACR unrestricted
 	mov r0, #0xFFFFFFFF
 	mcr p15, 0, r0, c3, c0, 0
 
-	# Disable MMU and caches
+	# Disable MMU and Dcache
 	mrc p15, 0, r0, c1, c0, 0
 	bic r0, #0b101
 	mcr p15, 0, r0, c1, c0, 0

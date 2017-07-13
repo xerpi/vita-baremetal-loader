@@ -1,6 +1,6 @@
 TARGET   = baremetal
-TARGET_OBJS  = main.o
-PAYLOAD_OBJS = payload/start.o payload/main.o payload/libc.o
+TARGET_OBJS  = main.o trampoline.o
+PAYLOAD_OBJS = payload/start.o payload/main.o payload/lowio.o payload/uart.o payload/libc.o
 
 LIBS =	-ltaihenForKernel_stub -lSceSysclibForDriver_stub -lSceSysmemForDriver_stub \
 	-lSceSysmemForKernel_stub -lSceThreadmgrForDriver_stub -lSceCpuForKernel_stub \
@@ -11,7 +11,7 @@ PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc
 AS      = $(PREFIX)-as
 OBJCOPY = $(PREFIX)-objcopy
-CFLAGS  = -Wl,-q -Wall -O0 -nostartfiles -mcpu=cortex-a9 -marm
+CFLAGS  = -Wl,-q -Wall -O0 -nostartfiles -mcpu=cortex-a9 -mthumb-interwork
 ASFLAGS =
 
 all: $(TARGET).skprx
