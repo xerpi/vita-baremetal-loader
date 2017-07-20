@@ -1,11 +1,11 @@
-TARGET   = baremetal
+TARGET   = baremetal-loader
 TARGET_OBJS  = main.o trampoline.o
-PAYLOAD_OBJS = payload/start.o payload/main.o payload/lowio.o payload/uart.o payload/libc.o
+STAGE1_OBJS = stage1/stage1.o
 
 LIBS =	-ltaihenForKernel_stub -lSceSysclibForDriver_stub -lSceSysmemForDriver_stub \
-	-lSceSysmemForKernel_stub -lSceThreadmgrForDriver_stub -lSceCpuForKernel_stub \
-	-lSceCpuForDriver_stub -lSceUartForKernel_stub -lScePervasiveForDriver_stub \
-	-lSceSysconForDriver_stub -lScePowerForDriver_stub
+	-lSceSysmemForKernel_stub -lSceThreadmgrForDriver_stub  -lSceIofilemgrForDriver_stub \
+	-lSceCpuForKernel_stub -lSceCpuForDriver_stub -lSceUartForKernel_stub \
+	-lScePervasiveForDriver_stub -lSceSysconForDriver_stub -lScePowerForDriver_stub
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc
@@ -22,24 +22,24 @@ all: $(TARGET).skprx
 %.velf: %.elf
 	vita-elf-create -e $(TARGET).yml $< $@
 
-payload.elf: $(PAYLOAD_OBJS)
-	$(CC) -T payload/payload.ld -nostartfiles -nostdlib $^ -o $@ -lgcc
+stage1.elf: $(STAGE1_OBJS)
+	$(CC) -T stage1/stage1.ld -nostartfiles -nostdlib $^ -o $@ -lgcc
 
-payload.bin: payload.elf
+stage1.bin: stage1.elf
 	$(OBJCOPY) -S -O binary $^ $@
 
-payload_bin.o: payload.bin
+stage1_bin.o: stage1.bin
 	$(OBJCOPY) --input binary --output elf32-littlearm \
 		--binary-architecture arm $^ $@
 
-$(TARGET).elf: $(TARGET_OBJS) payload_bin.o
+$(TARGET).elf: $(TARGET_OBJS) stage1_bin.o
 	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
 
 .PHONY: clean send
 
 clean:
 	@rm -rf $(TARGET).skprx $(TARGET).velf $(TARGET).elf $(TARGET_OBJS) \
-		payload.elf payload.bin payload_bin.o $(PAYLOAD_OBJS)
+		stage1.elf stage1.bin stage1_bin.o $(STAGE1_OBJS)
 
 send: $(TARGET).skprx
 	curl -T $(TARGET).skprx ftp://$(PSVITAIP):1337/ux0:/data/tai/kplugin.skprx

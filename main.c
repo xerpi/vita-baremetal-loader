@@ -4,7 +4,9 @@
 #include <psp2kern/kernel/modulemgr.h>
 #include <psp2kern/kernel/threadmgr.h>
 #include <psp2kern/kernel/sysmem.h>
+#include <psp2kern/io/fcntl.h>
 #include <taihen.h>
+#include "config.h"
 
 #define UART0_PRINTF(s, ...) \
 	do { \
@@ -13,17 +15,25 @@
 		uart0_print(_buffer); \
 	} while (0)
 
+#define ALIGN(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
+
 void _start() __attribute__ ((weak, alias ("module_start")));
 
-#define PAYLOAD_PADDR ((void *)0x00000000)
+#define STAGE1_PADDR ((void *)0x00000000)
+
+struct stage1_args {
+	unsigned int payload_src_paddr;
+	unsigned int payload_dst_paddr;
+	unsigned int payload_size;
+};
 
 extern void trampoline_stage_0(void);
 
-extern const unsigned char _binary_payload_bin_start;
-extern const unsigned char _binary_payload_bin_size;
+extern const unsigned char _binary_stage1_bin_start;
+extern const unsigned char _binary_stage1_bin_size;
 
-static const unsigned int payload_size = (unsigned int)&_binary_payload_bin_size;
-static const void *const payload_addr = (void *)&_binary_payload_bin_start;
+static const unsigned int stage1_size = (unsigned int)&_binary_stage1_bin_size;
+static const void *const stage1_addr = (void *)&_binary_stage1_bin_start;
 
 #define SYSCON_CMD_RESET_DEVICE	0x0C
 
@@ -55,6 +65,8 @@ static int find_paddr(unsigned long paddr, unsigned long vaddr, unsigned int siz
 		      unsigned int step, unsigned long *found_vaddr);
 static unsigned long page_table_entry(unsigned long paddr);
 static void map_identity(void);
+static int alloc_phycont(unsigned int size, SceUID *uid, void **addr);
+static int load_file_phycont(const char *path, SceUID *uid, void **addr, unsigned int *size);
 
 typedef struct SceSysconSuspendContext {
 	unsigned int size;
@@ -85,6 +97,8 @@ static SceSysconSuspendContext suspend_ctx;
 static unsigned int suspend_ctx_paddr;
 static volatile unsigned int sync_sema;
 static unsigned int sync_evflag;
+static unsigned int payload_load_paddr;
+static unsigned int payload_size;
 
 static tai_hook_ref_t SceSyscon_ksceSysconResetDevice_ref;
 static SceUID SceSyscon_ksceSysconResetDevice_hook_uid = -1;
@@ -164,11 +178,26 @@ void __attribute__((noreturn, used)) trampoline_stage_1(void)
 
 	if (get_cpu_id() == 0) {
 		/*
-		 * Copy the payload.
+		 * Copy the stage1.
 		 */
-		ksceKernelCpuUnrestrictedMemcpy(PAYLOAD_PADDR, payload_addr, payload_size);
-		ksceKernelCpuDcacheWritebackRange(PAYLOAD_PADDR, payload_size);
-		ksceKernelCpuIcacheAndL2WritebackInvalidateRange(PAYLOAD_PADDR, payload_size);
+		ksceKernelCpuUnrestrictedMemcpy(STAGE1_PADDR, stage1_addr, stage1_size);
+
+		/*
+		 * Set the stage1 args
+		 */
+		const struct stage1_args args = {
+			.payload_src_paddr = payload_load_paddr,
+			.payload_dst_paddr = PAYLOAD_PADDR,
+			.payload_size = payload_size
+		};
+
+		ksceKernelCpuUnrestrictedMemcpy(STAGE1_PADDR, &args, sizeof(args));
+
+		/*
+		 * Flush caches
+		 */
+		ksceKernelCpuDcacheWritebackRange(STAGE1_PADDR, stage1_size);
+		ksceKernelCpuIcacheAndL2WritebackInvalidateRange(STAGE1_PADDR, stage1_size);
 
 		while (sync_sema != 4)
 			;
@@ -179,7 +208,10 @@ void __attribute__((noreturn, used)) trampoline_stage_1(void)
 	while (sync_evflag != 1)
 		;
 
-	((void (*)(void))PAYLOAD_PADDR)();
+	/*
+	 * Jump to the stage1 (skipping the args)
+	 */
+	((void (*)(void))(STAGE1_PADDR + sizeof(struct stage1_args)))();
 
 	while (1)
 		;
@@ -187,12 +219,32 @@ void __attribute__((noreturn, used)) trampoline_stage_1(void)
 
 int module_start(SceSize argc, const void *args)
 {
+	int ret;
+	SceUID payload_uid;
+	void *payload_vaddr;
+
 	ScePervasiveForDriver_EFD084D8(0); // Turn on clock
 	ScePervasiveForDriver_A7CE7DCC(0); // Out of reset
 
 	ksceUartInit(0);
 
-	UART0_PRINTF("Baremetal sample by xerpi\n");
+	UART0_PRINTF("Baremetal payload loader by xerpi\n");
+
+	/*
+	 * Load the baremetal payload to physically contiguous memory.
+	 */
+	ret = load_file_phycont(PAYLOAD_PATH, &payload_uid, &payload_vaddr, &payload_size);
+	if (ret < 0) {
+		UART0_PRINTF("Error loading " PAYLOAD_PATH ": 0x%08X\n", ret);
+		return SCE_KERNEL_START_FAILED;
+	}
+
+	payload_load_paddr = get_paddr((unsigned int)payload_vaddr);
+
+	UART0_PRINTF("Payload memory UID: 0x%08X\n", payload_uid);
+	UART0_PRINTF("Payload load vaddr: 0x%08X\n", (unsigned int)payload_vaddr);
+	UART0_PRINTF("Payload load paddr: 0x%08X\n", payload_load_paddr);
+	UART0_PRINTF("Payload size: 0x%08X\n", payload_size);
 
 	SceSyscon_ksceSysconResetDevice_hook_uid = taiHookFunctionExportForKernel(KERNEL_PID,
 		&SceSyscon_ksceSysconResetDevice_ref, "SceSyscon", 0x60A35F64,
@@ -213,6 +265,7 @@ int module_start(SceSize argc, const void *args)
 	UART0_PRINTF("Hooks done\n");
 
 	map_identity();
+
 	UART0_PRINTF("Identity map created (at scratchpad).\n");
 
 	SceKernelAllocMemBlockKernelOpt opt;
@@ -223,12 +276,10 @@ int module_start(SceSize argc, const void *args)
         SceUID scratchpad_uid = ksceKernelAllocMemBlock("ScratchPad32KiB", 0x20108006, 0x8000, &opt);
 
         ksceKernelGetMemBlockBase(scratchpad_uid, (void **)&scratchpad_vaddr);
-        UART0_PRINTF("Scratchpad mapped to 0x%08X.\n", scratchpad_vaddr);
+        UART0_PRINTF("Scratchpad (for the stack) mapped to 0x%08X.\n", scratchpad_vaddr);
 
        	ksceKernelGetPaddr(&suspend_ctx, &suspend_ctx_paddr);
 	UART0_PRINTF("Suspend context paddr: 0x%08X\n", suspend_ctx_paddr);
-
-	UART0_PRINTF("Payload paddr: 0x%08X\n", (unsigned int)PAYLOAD_PADDR);
 
 	sync_sema = 0;
 	sync_evflag = 0;
@@ -371,4 +422,74 @@ void map_identity(void)
 		/* Instruction barrier */
 		"mcr p15, 0, %0, c7, c5, 4\n"
 		: : "r"(0));
+}
+
+int alloc_phycont(unsigned int size, SceUID *uid, void **addr)
+{
+	int ret;
+	SceUID mem_uid;
+	unsigned int mem_size;
+	void *mem_addr;
+
+	mem_size = ALIGN(size, 4096);
+
+	SceKernelAllocMemBlockKernelOpt opt;
+	memset(&opt, 0, sizeof(opt));
+	opt.size = sizeof(opt);
+	opt.attr = 0x200004;
+	opt.alignment = 0x100000;
+	mem_uid = ksceKernelAllocMemBlock("phycont", 0x30808006, mem_size, &opt);
+	if (mem_uid < 0)
+		return mem_uid;
+
+	ret = ksceKernelGetMemBlockBase(mem_uid, &mem_addr);
+	if (ret < 0) {
+		ksceKernelFreeMemBlock(mem_uid);
+		return ret;
+	}
+
+	if (uid)
+		*uid = mem_uid;
+	if (addr)
+		*addr = mem_addr;
+
+	return 0;
+}
+
+int load_file_phycont(const char *path, SceUID *uid, void **addr, unsigned int *size)
+{
+	int ret;
+	SceUID fd;
+	SceUID mem_uid;
+	void *mem_addr;
+	unsigned int file_size;
+
+	fd = ksceIoOpen(path, SCE_O_RDONLY, 0);
+	if (fd < 0)
+		return fd;
+
+	file_size = ksceIoLseek(fd, 0, SCE_SEEK_END);
+	ksceIoLseek(fd, 0, SCE_SEEK_SET);
+
+	ret = alloc_phycont(file_size, &mem_uid, &mem_addr);
+	if (ret < 0) {
+		ksceIoClose(fd);
+		return ret;
+	}
+
+	ksceIoRead(fd, mem_addr, file_size);
+
+	ksceKernelCpuDcacheAndL2WritebackRange(mem_addr, file_size);
+	ksceKernelCpuIcacheInvalidateRange(mem_addr, file_size);
+
+	ksceIoClose(fd);
+
+	if (uid)
+		*uid = mem_uid;
+	if (addr)
+		*addr = mem_addr;
+	if (size)
+		*size = file_size;
+
+	return 0;
 }
