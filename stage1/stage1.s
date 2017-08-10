@@ -10,6 +10,7 @@ _start:
 PAYLOAD_SRC_PADDR: .word 0
 PAYLOAD_DST_PADDR: .word 0
 PAYLOAD_SIZE: .word 0
+SYSROOT_BUFFER_PADDR: .word 0
 
 stage1_start:
 	# Disable interrupts and enter System mode
@@ -23,21 +24,23 @@ stage1_start:
 	ldr r0, PAYLOAD_SRC_PADDR
 	ldr r1, PAYLOAD_DST_PADDR
 	ldr r2, PAYLOAD_SIZE
+	ldr r3, SYSROOT_BUFFER_PADDR
 	mov lr, r1
 
 	# Disable MMU and Dcache
-	mrc p15, 0, r3, c1, c0, 0
-	bic r3, #0b101
-	mcr p15, 0, r3, c1, c0, 0
+	mrc p15, 0, r4, c1, c0, 0
+	bic r4, #0b101
+	mcr p15, 0, r4, c1, c0, 0
 	isb
 
 	# Copy the payload to its destination address
 copy:
-	ldr r3, [r0], #4
-	str r3, [r1], #4
+	ldr r4, [r0], #4
+	str r4, [r1], #4
 	sub r2, #4
 	cmp r2, #0
 	bne copy
 
-	# Jump to the payload
+	# Jump to the payload, first arg = sysroot paddr
+	mov r0, r3
 	bx lr

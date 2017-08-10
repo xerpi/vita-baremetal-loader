@@ -5,7 +5,8 @@ STAGE1_OBJS = stage1/stage1.o
 LIBS =	-ltaihenForKernel_stub -lSceSysclibForDriver_stub -lSceSysmemForDriver_stub \
 	-lSceSysmemForKernel_stub -lSceThreadmgrForDriver_stub  -lSceIofilemgrForDriver_stub \
 	-lSceCpuForKernel_stub -lSceCpuForDriver_stub -lSceUartForKernel_stub \
-	-lScePervasiveForDriver_stub -lSceSysconForDriver_stub -lScePowerForDriver_stub
+	-lScePervasiveForDriver_stub -lSceSysconForDriver_stub -lScePowerForDriver_stub \
+	-lSceSysrootForKernel_stub
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc

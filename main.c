@@ -7,6 +7,7 @@
 #include <psp2kern/io/fcntl.h>
 #include <taihen.h>
 #include "config.h"
+#include "sysroot.h"
 
 #define UART0_PRINTF(s, ...) \
 	do { \
@@ -25,6 +26,7 @@ struct stage1_args {
 	unsigned int payload_src_paddr;
 	unsigned int payload_dst_paddr;
 	unsigned int payload_size;
+	unsigned int sysroot_buffer_paddr;
 };
 
 extern void trampoline_stage_0(void);
@@ -99,6 +101,7 @@ static volatile unsigned int sync_sema;
 static unsigned int sync_evflag;
 static unsigned int payload_load_paddr;
 static unsigned int payload_size;
+static unsigned int sysroot_buffer_paddr;
 
 static tai_hook_ref_t SceSyscon_ksceSysconResetDevice_ref;
 static SceUID SceSyscon_ksceSysconResetDevice_hook_uid = -1;
@@ -188,7 +191,8 @@ void __attribute__((noreturn, used)) trampoline_stage_1(void)
 		const struct stage1_args args = {
 			.payload_src_paddr = payload_load_paddr,
 			.payload_dst_paddr = PAYLOAD_PADDR,
-			.payload_size = payload_size
+			.payload_size = payload_size,
+			.sysroot_buffer_paddr = sysroot_buffer_paddr
 		};
 
 		ksceKernelCpuUnrestrictedMemcpy(STAGE1_PADDR, &args, sizeof(args));
@@ -222,6 +226,9 @@ int module_start(SceSize argc, const void *args)
 	int ret;
 	SceUID payload_uid;
 	void *payload_vaddr;
+	SceUID sysroot_buffer_uid;
+	void *sysroot_buffer_vaddr;
+	struct sysroot_buffer *sysroot;
 
 	ScePervasiveForDriver_EFD084D8(0); // Turn on clock
 	ScePervasiveForDriver_A7CE7DCC(0); // Out of reset
@@ -246,6 +253,25 @@ int module_start(SceSize argc, const void *args)
 	UART0_PRINTF("Payload load paddr: 0x%08X\n", payload_load_paddr);
 	UART0_PRINTF("Payload size: 0x%08X\n", payload_size);
 
+	/*
+	 * Copy the sysroot buffer to physically contiguous memory.
+	 */
+	sysroot = ksceKernelGetSysrootBuffer();
+
+	ret = alloc_phycont(sysroot->size, &sysroot_buffer_uid, &sysroot_buffer_vaddr);
+	if (ret < 0) {
+		UART0_PRINTF("Error allocating memory for the Sysroot buffer 0x%08X\n", ret);
+		ksceKernelFreeMemBlock(payload_uid);
+		return SCE_KERNEL_START_FAILED;
+	}
+
+	ksceKernelCpuUnrestrictedMemcpy(sysroot_buffer_vaddr, sysroot, sysroot->size);
+
+	sysroot_buffer_paddr = get_paddr((unsigned int)sysroot_buffer_vaddr);
+
+	/*
+	 * Function hooks
+	 */
 	SceSyscon_ksceSysconResetDevice_hook_uid = taiHookFunctionExportForKernel(KERNEL_PID,
 		&SceSyscon_ksceSysconResetDevice_ref, "SceSyscon", 0x60A35F64,
 		0x8A95D35C, ksceSysconResetDevice_hook_func);
