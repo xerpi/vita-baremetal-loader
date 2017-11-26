@@ -50,11 +50,6 @@ extern int ksceUartWrite(int bus, unsigned char data);
 extern int ksceUartRead(int bus);
 extern int ksceUartInit(int bus);
 
-extern int ScePervasiveForDriver_18DD8043(int uart_bus);
-extern int ScePervasiveForDriver_788B6C61(int uart_bus);
-extern int ScePervasiveForDriver_A7CE7DCC(int uart_bus);
-extern int ScePervasiveForDriver_EFD084D8(int uart_bus);
-
 extern int ksceSysconResetDevice(int type, int unk);
 extern int ksceSysconSendCommand(unsigned int cmd, void *args, int size);
 
@@ -230,8 +225,8 @@ int module_start(SceSize argc, const void *args)
 	void *sysroot_buffer_vaddr;
 	struct sysroot_buffer *sysroot;
 
-	ScePervasiveForDriver_EFD084D8(0); // Turn on clock
-	ScePervasiveForDriver_A7CE7DCC(0); // Out of reset
+	kscePervasiveUartClockEnable(0); // Turn on clock
+	kscePervasiveUartResetDisable(0); // Out of reset
 
 	ksceUartInit(0);
 
