@@ -18,7 +18,7 @@ ASFLAGS =
 all: $(TARGET).skprx
 
 %.skprx: %.velf
-	vita-make-fself $< $@
+	vita-make-fself -c $< $@
 
 %.velf: %.elf
 	vita-elf-create -e $(TARGET).yml $< $@
