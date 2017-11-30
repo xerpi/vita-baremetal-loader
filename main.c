@@ -280,7 +280,7 @@ int module_start(SceSize argc, const void *args)
 	SceKernelAllocMemBlockKernelOpt opt;
         memset(&opt, 0, sizeof(opt));
         opt.size = sizeof(opt);
-        opt.attr = 2;
+        opt.attr = SCE_KERNEL_ALLOC_MEMBLOCK_ATTR_HAS_PADDR;
         opt.paddr = 0x1F000000;
         SceUID scratchpad_uid = ksceKernelAllocMemBlock("ScratchPad32KiB", 0x20108006, 0x8000, &opt);
 
@@ -445,7 +445,7 @@ int alloc_phycont(unsigned int size, SceUID *uid, void **addr)
 	SceKernelAllocMemBlockKernelOpt opt;
 	memset(&opt, 0, sizeof(opt));
 	opt.size = sizeof(opt);
-	opt.attr = 0x200004;
+	opt.attr = SCE_KERNEL_ALLOC_MEMBLOCK_ATTR_PHYCONT | SCE_KERNEL_ALLOC_MEMBLOCK_ATTR_HAS_ALIGNMENT;;
 	opt.alignment = 0x100000;
 	mem_uid = ksceKernelAllocMemBlock("phycont", 0x30808006, mem_size, &opt);
 	if (mem_uid < 0)
