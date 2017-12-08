@@ -1,11 +1,11 @@
 TARGET   = baremetal-loader
-TARGET_OBJS  = main.o trampoline.o
-STAGE1_OBJS = stage1/stage1.o
+TARGET_OBJS  = main.o resume.o
+BOOTSTRAP_OBJS = payload_bootstrap.o
 
 LIBS =	-ltaihenForKernel_stub -lSceSysclibForDriver_stub -lSceSysmemForDriver_stub \
-	-lSceSysmemForKernel_stub -lSceThreadmgrForDriver_stub  -lSceIofilemgrForDriver_stub \
-	-lSceCpuForKernel_stub -lSceCpuForDriver_stub -lSceUartForKernel_stub \
-	-lScePervasiveForDriver_stub -lSceSysconForDriver_stub -lScePowerForDriver_stub \
+	-lSceSysmemForKernel_stub -lSceThreadmgrForDriver_stub -lSceCpuForKernel_stub \
+	-lSceCpuForDriver_stub -lSceUartForKernel_stub -lScePervasiveForDriver_stub \
+	-lSceSysconForDriver_stub -lScePowerForDriver_stub -lSceIofilemgrForDriver_stub \
 	-lSceSysrootForKernel_stub
 
 PREFIX  = arm-vita-eabi
@@ -23,25 +23,24 @@ all: $(TARGET).skprx
 %.velf: %.elf
 	vita-elf-create -e $(TARGET).yml $< $@
 
-stage1.elf: $(STAGE1_OBJS)
-	$(CC) -T stage1/stage1.ld -nostartfiles -nostdlib $^ -o $@ -lgcc
+payload_bootstrap.elf: $(BOOTSTRAP_OBJS)
+	$(CC) -T payload_bootstrap.ld -nostartfiles -nostdlib $^ -o $@ -lgcc
 
-stage1.bin: stage1.elf
+payload_bootstrap.bin: payload_bootstrap.elf
 	$(OBJCOPY) -S -O binary $^ $@
 
-stage1_bin.o: stage1.bin
-	$(OBJCOPY) --input binary --output elf32-littlearm \
-		--binary-architecture arm $^ $@
+payload_bootstrap_bin.o: payload_bootstrap.bin
+	$(OBJCOPY) --input binary --output elf32-littlearm --binary-architecture arm $^ $@
 
-$(TARGET).elf: $(TARGET_OBJS) stage1_bin.o
+$(TARGET).elf: $(TARGET_OBJS) payload_bootstrap_bin.o
 	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
 
-.PHONY: clean send
+.PHONY: all clean send
 
 clean:
-	@rm -rf $(TARGET).skprx $(TARGET).velf $(TARGET).elf $(TARGET_OBJS) \
-		stage1.elf stage1.bin stage1_bin.o $(STAGE1_OBJS)
+	@rm -rf $(TARGET).skprx $(TARGET).velf $(TARGET).elf $(TARGET_OBJS) $(BOOTSTRAP_OBJS) \
+	        payload_bootstrap.elf payload_bootstrap.bin payload_bootstrap_bin.o
 
 send: $(TARGET).skprx
-	curl -T $(TARGET).skprx ftp://$(PSVITAIP):1337/ux0:/data/tai/kplugin.skprx
+	curl --ftp-method nocwd -T $(TARGET).skprx ftp://$(PSVITAIP):1337/ux0:/data/tai/kplugin.skprx
 	@echo "Sent."
