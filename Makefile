@@ -30,7 +30,7 @@ payload_bootstrap.bin: payload_bootstrap.elf
 	$(OBJCOPY) -S -O binary $^ $@
 
 payload_bootstrap_bin.o: payload_bootstrap.bin
-	$(OBJCOPY) --input binary --output elf32-littlearm --binary-architecture arm $^ $@
+	$(OBJCOPY) -I binary -O elf32-littlearm --binary-architecture arm $^ $@
 
 $(TARGET).elf: $(TARGET_OBJS) payload_bootstrap_bin.o
 	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
