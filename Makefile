@@ -2,11 +2,13 @@ TARGET   = baremetal-loader
 TARGET_OBJS  = main.o resume.o
 BOOTSTRAP_OBJS = payload_bootstrap.o
 
-LIBS =	-ltaihenForKernel_stub -lSceSysclibForDriver_stub -lSceSysmemForDriver_stub \
-	-lSceSysmemForKernel_stub -lSceThreadmgrForDriver_stub -lSceCpuForKernel_stub \
-	-lSceCpuForDriver_stub -lSceUartForKernel_stub -lScePervasiveForDriver_stub \
+COMMON_LIBS = -ltaihenForKernel_stub -lSceSysclibForDriver_stub -lSceSysmemForDriver_stub \
+	-lSceThreadmgrForDriver_stub -lSceCpuForDriver_stub -lScePervasiveForDriver_stub \
 	-lSceSysconForDriver_stub -lScePowerForDriver_stub -lSceIofilemgrForDriver_stub \
 	-lSceSysrootForKernel_stub
+
+LIBS = $(COMMON_LIBS) -lSceSysmemForKernel_stub -lSceCpuForKernel_stub -lSceUartForKernel_stub
+LIBS_363 = $(COMMON_LIBS) -lSceSysmemForKernel_363_stub -lSceCpuForKernel_363_stub -lSceUartForKernel_363_stub
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc
@@ -15,7 +17,7 @@ OBJCOPY = $(PREFIX)-objcopy
 CFLAGS  = -Wl,-q -Wall -O0 -nostartfiles -mcpu=cortex-a9 -mthumb-interwork
 ASFLAGS =
 
-all: $(TARGET).skprx
+all: $(TARGET).skprx $(TARGET)_363.skprx
 
 %.skprx: %.velf
 	vita-make-fself -c $< $@
@@ -35,11 +37,16 @@ payload_bootstrap_bin.o: payload_bootstrap.bin
 $(TARGET).elf: $(TARGET_OBJS) payload_bootstrap_bin.o
 	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
 
+$(TARGET)_363.elf: $(TARGET_OBJS) payload_bootstrap_bin.o
+	$(CC) $(CFLAGS) $^ $(LIBS_363) -o $@
+
 .PHONY: all clean send
 
 clean:
-	@rm -rf $(TARGET).skprx $(TARGET).velf $(TARGET).elf $(TARGET_OBJS) $(BOOTSTRAP_OBJS) \
-	        payload_bootstrap.elf payload_bootstrap.bin payload_bootstrap_bin.o
+	@rm -rf $(TARGET).skprx $(TARGET).velf $(TARGET).elf \
+	$(TARGET)_363.skprx $(TARGET)_363.velf $(TARGET)_363.elf \
+	$(TARGET_OBJS) $(BOOTSTRAP_OBJS) \
+	payload_bootstrap.elf payload_bootstrap.bin payload_bootstrap_bin.o
 
 send: $(TARGET).skprx
 	curl --ftp-method nocwd -T $(TARGET).skprx ftp://$(PSVITAIP):1337/ux0:/data/tai/kplugin.skprx

@@ -65,13 +65,13 @@ cpu1_3_cont:
 	@   r0 = payload src paddr
 	@   r1 = payload dst paddr
 	@   r2 = payload size
-	@   r3 = sysroot buffer paddr
+	@   r3 = KBL param paddr
 	ldr r0, =payload_load_paddr
 	ldr r0, [r0]
 	ldr r1, =PAYLOAD_PADDR
 	ldr r2, =payload_size
 	ldr r2, [r2]
-	ldr r3, =sysroot_buffer_paddr
+	ldr r3, =kbl_param_paddr
 	ldr r3, [r3]
 
 	@ Jump to the payload bootsrap!

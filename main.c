@@ -9,9 +9,9 @@
 #include <psp2kern/display.h>
 #include <psp2kern/power.h>
 #include <psp2kern/syscon.h>
+#include <psp2kern/kernel/sysroot.h>
 #include <psp2kern/uart.h>
 #include <taihen.h>
-#include "sysroot.h"
 #include "config.h"
 
 #define LOG(s, ...) \
@@ -74,7 +74,7 @@ static unsigned int resume_ctx_buff[32];
  */
 uintptr_t payload_load_paddr;
 unsigned int payload_size;
-uintptr_t sysroot_buffer_paddr;
+uintptr_t kbl_param_paddr;
 void *lvl1_pt_va;
 
 static void setup_payload(void)
@@ -163,10 +163,10 @@ int module_start(SceSize argc, const void *args)
 {
 	int ret;
 	SceUID payload_uid;
-	SceUID sysroot_buffer_uid;
+	SceUID kbl_param_uid;
 	void *payload_vaddr;
-	void *sysroot_buffer_vaddr;
-	struct sysroot_buffer *sysroot;
+	void *kbl_param_vaddr;
+	SceKblParam *kbl_param;
 
 	kscePervasiveUartClockEnable(0);
 	kscePervasiveUartResetDisable(0);
@@ -193,25 +193,25 @@ int module_start(SceSize argc, const void *args)
 	LOG("\n");
 
 	/*
-	 * Copy the sysroot buffer to physically contiguous memory.
+	 * Copy the KBL param to physically contiguous memory.
 	 */
-	sysroot = ksceKernelGetSysrootBuffer();
+	kbl_param = ksceKernelSysrootGetKblParam();
 
-	ret = alloc_phycont(sysroot->size, 4096, &sysroot_buffer_uid, &sysroot_buffer_vaddr);
+	ret = alloc_phycont(kbl_param->size, 4096, &kbl_param_uid, &kbl_param_vaddr);
 	if (ret < 0) {
-		LOG("Error allocating memory for the Sysroot buffer 0x%08X\n", ret);
+		LOG("Error allocating memory for the KBL param 0x%08X\n", ret);
 		ksceKernelFreeMemBlock(payload_uid);
 		return SCE_KERNEL_START_FAILED;
 	}
 
-	ksceKernelCpuUnrestrictedMemcpy(sysroot_buffer_vaddr, sysroot, sysroot->size);
+	ksceKernelCpuUnrestrictedMemcpy(kbl_param_vaddr, kbl_param, kbl_param->size);
 
-	ksceKernelGetPaddr(sysroot_buffer_vaddr, &sysroot_buffer_paddr);
+	ksceKernelGetPaddr(kbl_param_vaddr, &kbl_param_paddr);
 
-	LOG("Sysroot buffer memory UID: 0x%08X\n", sysroot_buffer_uid);
-	LOG("Sysroot buffer vaddr: 0x%08X\n", (unsigned int)sysroot_buffer_vaddr);
-	LOG("Sysroot buffer paddr: 0x%08X\n", sysroot_buffer_paddr);
-	LOG("Sysroot buffer size: 0x%08X\n", sysroot->size);
+	LOG("KBL param memory UID: 0x%08X\n", kbl_param_uid);
+	LOG("KBL param vaddr: 0x%08X\n", (unsigned int)kbl_param_vaddr);
+	LOG("KBL param paddr: 0x%08X\n", kbl_param_paddr);
+	LOG("KBL param size: 0x%08X\n", kbl_param->size);
 	LOG("\n");
 
 	SceSyscon_ksceSysconResetDevice_hook_uid = taiHookFunctionExportForKernel(KERNEL_PID,

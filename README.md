@@ -25,7 +25,7 @@ Since the payload bootstrap code is now in an identity-mapped location, it can p
 **Installation**:
 
 1. Copy your payload to your PSVita (default path is `ux0:/baremetal/payload.bin`)
-2. Copy `baremetal-loader.skprx` to your PSVita
+2. Copy `baremetal-loader.skprx` to your PSVita (or `baremetal-loader_363.skprx` if your FW is ≥ 3.63)
 3. Load the plugin
 
 ## Example bare-metal payload
