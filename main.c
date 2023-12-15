@@ -121,6 +121,7 @@ static int ksceSysconResetDevice_hook_func(int type, int mode)
 
 	LOG("Resetting the device!\n");
 
+	ksceKernelPleFlushRequest();
 	ksceKernelL1DcacheCleanInvalidateAll();
 	ksceKernelL1IcacheInvalidateEntireAllCore();
 
@@ -350,7 +351,7 @@ int load_file_phycont(const char *path, SceUID *uid, void **addr, unsigned int *
 	ksceIoRead(fd, mem_addr, file_size);
 
 	ksceKernelDcacheCleanRange(mem_addr, aligned_size);
-	ksceKernelL1IcacheInvalidateRange(mem_addr, aligned_size);
+	ksceKernelIcacheInvalidateRange(mem_addr, aligned_size);
 
 	ksceIoClose(fd);
 
