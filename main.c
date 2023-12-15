@@ -99,7 +99,7 @@ static void setup_payload(void)
 	asm volatile("mrc p15, 0, %0, c13, c0, 4\n\t" : "=r"(resume_ctx.TPIDRPRW));
 	resume_ctx.time = ksceKernelGetSystemTimeWide();
 
-	ksceKernelCpuDcacheAndL2WritebackRange(&resume_ctx, sizeof(resume_ctx));
+	ksceKernelDcacheCleanRange(&resume_ctx, sizeof(resume_ctx));
 
 	lvl1_pt_va = get_lvl1_page_table_va();
 
@@ -121,8 +121,8 @@ static int ksceSysconResetDevice_hook_func(int type, int mode)
 
 	LOG("Resetting the device!\n");
 
-	ksceKernelCpuDcacheWritebackInvalidateAll();
-	ksceKernelCpuIcacheInvalidateAll();
+	ksceKernelL1DcacheCleanInvalidateAll();
+	ksceKernelL1IcacheInvalidateEntireAllCore();
 
 	return TAI_CONTINUE(int, SceSyscon_ksceSysconResetDevice_ref, type, mode);
 }
@@ -204,7 +204,7 @@ int module_start(SceSize argc, const void *args)
 		return SCE_KERNEL_START_FAILED;
 	}
 
-	ksceKernelCpuUnrestrictedMemcpy(kbl_param_vaddr, kbl_param, kbl_param->size);
+	ksceKernelDomainTextMemcpy(kbl_param_vaddr, kbl_param, kbl_param->size);
 
 	ksceKernelGetPaddr(kbl_param_vaddr, &kbl_param_paddr);
 
@@ -349,8 +349,8 @@ int load_file_phycont(const char *path, SceUID *uid, void **addr, unsigned int *
 	ksceIoLseek(fd, 0, SCE_SEEK_SET);
 	ksceIoRead(fd, mem_addr, file_size);
 
-	ksceKernelCpuDcacheAndL2WritebackRange(mem_addr, aligned_size);
-	ksceKernelCpuIcacheInvalidateRange(mem_addr, aligned_size);
+	ksceKernelDcacheCleanRange(mem_addr, aligned_size);
+	ksceKernelL1IcacheInvalidateRange(mem_addr, aligned_size);
 
 	ksceIoClose(fd);
 
